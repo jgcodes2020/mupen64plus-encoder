@@ -15,5 +15,8 @@ add_executable(main
   "src/oslib/plibdl.hpp"
   "src/config/paths.hpp"
 )
+# if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+#   target_sources(main PRIVATE "src/backward.cpp")
+# endif()
 target_compile_features(main PRIVATE cxx_std_20)
 target_link_libraries(main PRIVATE m64p::api)

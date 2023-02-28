@@ -1,5 +1,6 @@
 src/config
 build/
+local/
 .*/
 !.git/
 !.vscode/settings.json

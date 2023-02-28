@@ -1,10 +1,12 @@
 #ifndef _M64PP_CORE_HPP_
 #define _M64PP_CORE_HPP_
 
+#define ENC_SUPPORT
 #include <mupen64plus/m64p_common.h>
 #include <mupen64plus/m64p_frontend.h>
 #include <mupen64plus/m64p_plugin.h>
 #include <mupen64plus/m64p_vcr.h>
+#include <mupen64plus/m64p_encoder.h>
 #include <fstream>
 #include <iostream>
 #include <list>
@@ -40,6 +42,8 @@ namespace m64p {
         if (err != M64ERR_SUCCESS) {
           throw std::runtime_error(get_fn<"CoreErrorMessage">()(err));
         }
+        
+        get_fn<"VCR_SetErrorCallback">()(vcr_debug_log);
       }
     }
 
@@ -47,9 +51,31 @@ namespace m64p {
       get_fn<"CoreShutdown">()();
       oslib::pdlclose(lib_handle);
     }
-
+    
+    static int vcr_debug_log(m64p_msg_level level, const char* msg) {
+      return 0;
+      switch (level) {
+        case M64MSG_ERROR:
+          std::cout << "[VCR ERROR] " << msg << '\n';
+          break;
+        case M64MSG_WARNING:
+          std::cout << "[VCR WARN]  " << msg << '\n';
+          break;
+        case M64MSG_INFO:
+          std::cout << "[VCR INFO]  " << msg << '\n';
+          break;
+        case M64MSG_STATUS:
+          std::cout << "[VCR STAT]  " << msg << '\n';
+          break;
+        case M64MSG_VERBOSE:
+          // std::cout << "[VCR TRACE] " << msg << '\n';
+          break;
+      }
+      return 0;
+    }
     // Log a message from Mupen64Plus to the console.
     void debug_log(m64p_msg_level level, const char* msg) {
+      return;
       switch (level) {
         case M64MSG_ERROR:
           std::cout << "[M64+ ERROR] " << msg << '\n';
@@ -180,9 +206,20 @@ namespace m64p {
     void vcr_start_movie(const char* path) { get_fn<"VCR_StartMovie">()(path); }
     void vcr_stop_movie(bool loop = false) { get_fn<"VCR_StopMovie">()(loop); }
     bool vcr_is_readonly() { return get_fn<"VCR_IsReadOnly">()(); }
+    bool vcr_is_playing() { return get_fn<"VCR_IsPlaying">()(); }
     bool vcr_set_readonly(bool x) { return get_fn<"VCR_SetReadOnly">()(x); }
     uint32_t vcr_current_frame() { return get_fn<"VCR_GetCurFrame">()(); }
-
+    
+    bool enc_is_active() {
+      return get_fn<"Encoder_IsActive">();
+    }
+    void enc_start(const char* path, m64p_encoder_format fmt = M64FMT_NULL) {
+      m64p_check(get_fn<"Encoder_Start">()(path, fmt));
+    }
+    void enc_stop(bool discard = false) {
+      m64p_check(get_fn<"Encoder_Stop">()(discard));
+    }
+    
   private:
     using fn_table_t = ntuple<
       // Startup/Shutdown
@@ -196,7 +233,12 @@ namespace m64p {
       M64P_NTFN(VCR_GetCurFrame), M64P_NTFN(VCR_StopMovie),
       M64P_NTFN(VCR_SetKeys), M64P_NTFN(VCR_GetKeys), M64P_NTFN(VCR_IsPlaying),
       M64P_NTFN(VCR_IsReadOnly), M64P_NTFN(VCR_SetReadOnly),
-      M64P_NTFN(VCR_StartRecording), M64P_NTFN(VCR_StartMovie)>;
+      M64P_NTFN(VCR_StartRecording), M64P_NTFN(VCR_StartMovie),
+      M64P_NTFN(VCR_SetErrorCallback),
+      // Encoder hooks
+      M64P_NTFN(Encoder_IsActive), M64P_NTFN(Encoder_Start), M64P_NTFN(Encoder_Stop)
+      >;
+      
     using handler_list_t = std::list<fnptr<bool(m64p_core_param, int)>>;
 
     m64p_dynlib_handle lib_handle;
