@@ -23,11 +23,9 @@ int main() {
   auto t = emu_thread(c);
   
   c.vcr_start_movie(M64P_PATH_MOVIE);
-  c.enc_start("out.webm");
+  c.enc_start("out.mkv");
   
-  while (c.vcr_is_playing()) {
-    std::this_thread::sleep_for(100ms);
-  }
+  std::this_thread::sleep_for(10s);
   c.enc_stop();
   c.stop();
   

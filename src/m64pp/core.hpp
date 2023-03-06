@@ -3,10 +3,10 @@
 
 #define ENC_SUPPORT
 #include <mupen64plus/m64p_common.h>
+#include <mupen64plus/m64p_encoder.h>
 #include <mupen64plus/m64p_frontend.h>
 #include <mupen64plus/m64p_plugin.h>
 #include <mupen64plus/m64p_vcr.h>
-#include <mupen64plus/m64p_encoder.h>
 #include <fstream>
 #include <iostream>
 #include <list>
@@ -37,12 +37,22 @@ namespace m64p {
       // Startup core
       {
         m64p_error err = get_fn<"CoreStartup">()(
-          0x020000, nullptr, nullptr, this, m64p_debug_handle, this, m64p_state_handle);
+          0x020000, nullptr, nullptr, this,
+          [](void* self, int level, const char* msg) {
+            reinterpret_cast<core*>(self)->debug_log(
+              static_cast<m64p_msg_level>(level), msg
+            );
+          },
+          this,
+          [](void* self, m64p_core_param param, int value) {
+            reinterpret_cast<core*>(self)->run_state_handlers(param, value);
+          }
+        );
 
         if (err != M64ERR_SUCCESS) {
           throw std::runtime_error(get_fn<"CoreErrorMessage">()(err));
         }
-        
+
         get_fn<"VCR_SetErrorCallback">()(vcr_debug_log);
       }
     }
@@ -51,7 +61,7 @@ namespace m64p {
       get_fn<"CoreShutdown">()();
       oslib::pdlclose(lib_handle);
     }
-    
+
     static int vcr_debug_log(m64p_msg_level level, const char* msg) {
       return 0;
       switch (level) {
@@ -97,7 +107,8 @@ namespace m64p {
 
     // Adds a state handler.
     void add_state_handler(
-      fnptr<bool(m64p_core_param, int)> fn, bool before = false) {
+      fnptr<bool(m64p_core_param, int)> fn, bool before = false
+    ) {
       if (before)
         handlers.push_front(fn);
       else
@@ -128,12 +139,14 @@ namespace m64p {
           M64MSG_INFO,
           static_cast<std::ostringstream&&>(
             std::ostringstream()
-            << "Opened ROM " << path << " with size " << buffer_size)
+            << "Opened ROM " << path << " with size " << buffer_size
+          )
             .str()
-            .c_str());
+            .c_str()
+        );
 
-        m64p_check(get_fn<"CoreDoCommand">()(
-          M64CMD_ROM_OPEN, buffer_size, buffer.get()));
+        m64p_check(get_fn<"CoreDoCommand">(
+        )(M64CMD_ROM_OPEN, buffer_size, buffer.get()));
       }
     }
 
@@ -186,8 +199,13 @@ namespace m64p {
         throw std::runtime_error("Plugin already loaded for this type!");
       }
 
-      m64p_check(
-        M64P_LDFN(plugin, PluginStartup)(lib_handle, this, m64p_debug_handle));
+      m64p_check(M64P_LDFN(
+        plugin, PluginStartup
+      )(lib_handle, this, [](void* self, int level, const char* msg) {
+        reinterpret_cast<core*>(self)->debug_log(
+          static_cast<m64p_msg_level>(level), msg
+        );
+      }));
       m64p_check(get_fn<"CoreAttachPlugin">()(type, plugin));
       plugins[type] = plugin;
     }
@@ -209,17 +227,15 @@ namespace m64p {
     bool vcr_is_playing() { return get_fn<"VCR_IsPlaying">()(); }
     bool vcr_set_readonly(bool x) { return get_fn<"VCR_SetReadOnly">()(x); }
     uint32_t vcr_current_frame() { return get_fn<"VCR_GetCurFrame">()(); }
-    
-    bool enc_is_active() {
-      return get_fn<"Encoder_IsActive">();
-    }
+
+    bool enc_is_active() { return get_fn<"Encoder_IsActive">(); }
     void enc_start(const char* path, m64p_encoder_format fmt = M64FMT_NULL) {
       m64p_check(get_fn<"Encoder_Start">()(path, fmt));
     }
     void enc_stop(bool discard = false) {
       m64p_check(get_fn<"Encoder_Stop">()(discard));
     }
-    
+
   private:
     using fn_table_t = ntuple<
       // Startup/Shutdown
@@ -236,9 +252,9 @@ namespace m64p {
       M64P_NTFN(VCR_StartRecording), M64P_NTFN(VCR_StartMovie),
       M64P_NTFN(VCR_SetErrorCallback),
       // Encoder hooks
-      M64P_NTFN(Encoder_IsActive), M64P_NTFN(Encoder_Start), M64P_NTFN(Encoder_Stop)
-      >;
-      
+      M64P_NTFN(Encoder_IsActive), M64P_NTFN(Encoder_Start),
+      M64P_NTFN(Encoder_Stop)>;
+
     using handler_list_t = std::list<fnptr<bool(m64p_core_param, int)>>;
 
     m64p_dynlib_handle lib_handle;
@@ -264,8 +280,8 @@ namespace m64p {
 
     static fn_table_t* init_fn_table(m64p_dynlib_handle hnd) {
       // Use an IIFE to expand the parameter packs
-      return [&]<fixed_string... Ks, class... Ts>(
-        std::type_identity<ntuple<nt_leaf<Ks, Ts>...>>) {
+      return [&]<fixed_string... Ks, class... Ts>(std::type_identity<
+                                                  ntuple<nt_leaf<Ks, Ts>...>>) {
         // Ensure immediate initialization
         return new fn_table_t {oslib::pdlsym<Ts>(hnd, Ks.c_str())...};
       }
@@ -281,15 +297,6 @@ namespace m64p {
       if (err != M64ERR_SUCCESS) {
         throw std::runtime_error(get_fn<"CoreErrorMessage">()(err));
       }
-    }
-
-    // External interceptors
-    static void m64p_debug_handle(void* obj, int level, const char* message) {
-      static_cast<core*>(obj)->debug_log(
-        static_cast<m64p_msg_level>(level), message);
-    }
-    static void m64p_state_handle(void* obj, m64p_core_param p, int nv) {
-      static_cast<core*>(obj)->run_state_handlers(p, nv);
     }
   };
 }  // namespace m64p
