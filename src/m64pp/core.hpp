@@ -36,18 +36,18 @@ namespace m64p {
       lib_handle(oslib::pdlopen(path)), fn_table(init_fn_table(lib_handle)) {
       // Startup core
       {
-        m64p_error err = get_fn<"CoreStartup">()(
-          0x020000, nullptr, nullptr, this,
+        void (*debug_func)(void*, int, const char*) =
           [](void* self, int level, const char* msg) {
             reinterpret_cast<core*>(self)->debug_log(
               static_cast<m64p_msg_level>(level), msg
             );
-          },
-          this,
+          };
+        printf("debug_func is null: %s\n", (debug_func == nullptr)? "true":"false");
+        m64p_error err = get_fn<"CoreStartup">(
+        )(0x020000, nullptr, nullptr, this, debug_func, this,
           [](void* self, m64p_core_param param, int value) {
             reinterpret_cast<core*>(self)->run_state_handlers(param, value);
-          }
-        );
+          });
 
         if (err != M64ERR_SUCCESS) {
           throw std::runtime_error(get_fn<"CoreErrorMessage">()(err));
@@ -63,7 +63,6 @@ namespace m64p {
     }
 
     static int vcr_debug_log(m64p_msg_level level, const char* msg) {
-      return 0;
       switch (level) {
         case M64MSG_ERROR:
           std::cout << "[VCR ERROR] " << msg << '\n';
@@ -85,7 +84,6 @@ namespace m64p {
     }
     // Log a message from Mupen64Plus to the console.
     void debug_log(m64p_msg_level level, const char* msg) {
-      return;
       switch (level) {
         case M64MSG_ERROR:
           std::cout << "[M64+ ERROR] " << msg << '\n';

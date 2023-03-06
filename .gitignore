@@ -4,3 +4,10 @@ local/
 .*/
 !.git/
 !.vscode/settings.json
+
+# VIDEOS
+*.mp4
+*.webm
+*.mov
+*.avi
+*.mkv
