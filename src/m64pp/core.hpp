@@ -182,6 +182,18 @@ namespace m64p {
     void frame_advance() {
       m64p_check(get_fn<"CoreDoCommand">()(M64CMD_ADVANCE_FRAME, 0, nullptr));
     }
+    
+    // Gets a state variable from the core.
+    int core_state_get(m64p_core_param param) {
+      int res;
+      m64p_check(get_fn<"CoreDoCommand">()(M64CMD_CORE_STATE_QUERY, param, &res));
+      return res;
+    }
+    
+    // Sets a state variable to the core.
+    void core_state_set(m64p_core_param param, int val) {
+      m64p_check(get_fn<"CoreDoCommand">()(M64CMD_CORE_STATE_SET, param, &val));
+    }
 
     // Attaches a plugin, loaded from a path.
     // Auto-determines type using PluginGetVersion.
