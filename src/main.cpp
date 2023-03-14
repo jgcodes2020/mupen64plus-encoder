@@ -22,7 +22,7 @@ int main() {
   auto t = emu_thread(c);
 
   c.vcr_start_movie(M64P_PATH_MOVIE);
-  c.enc_start("out.webm");
+  c.enc_start("out.mp4");
 
   int emu_state;
 #if 1
